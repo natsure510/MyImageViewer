@@ -1,3 +1,15 @@
 <resources>
     <string name="app_name">MyImageViewer</string>
+    <string name="select_image">画像を選択</string>
+    <string name="change_image">別の画像を選択</string>
+    <string name="selection_hint">時間割などの画像を選択してください。
+表示中の画像を長押しすると変更できます。</string>
+    <string name="image_description">保存した画像。長押しで別の画像を選択できます。</string>
+    <string name="loading_image">画像を読み込み中</string>
+    <string name="image_error_title">画像を表示できませんでした</string>
+    <string name="load_error">保存した画像を読み込めませんでした。別の画像を選択してください。</string>
+    <string name="save_error">画像を読み込めないか、保存に失敗しました。対応する画像（50 MB 以下）と端末の空き容量を確認して、もう一度お試しください。以前の画像は変更されていません。</string>
+    <string name="memory_error">画像を読み込むためのメモリが不足しています。小さい画像でお試しください。</string>
+    <string name="picker_error">画像の選択画面を開けませんでした。もう一度お試しください。</string>
+    <string name="close">閉じる</string>
 </resources>
