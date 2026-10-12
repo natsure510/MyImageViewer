@@ -1,6 +1,6 @@
 # Android CI
 
-`.github/workflows/android-ci.yml` は全ブランチ・タグへの push と、Pull Request の作成・更新・再オープン時に実行されます。同じイベントと ref の古い実行はキャンセルします。ブランチへの push と PR 更新は別々の実行になります。
+`.github/workflows/android-ci.yml` は全ブランチへの push と、Pull Request の作成・更新・再オープン時に実行されます。同じイベントと ref の古い実行はキャンセルします。ブランチへの push と PR 更新は別々の実行になります。タグでは専用の `android-release.yml` が実行され、通常 CI は実行されません。リリース手順は README を参照してください。
 
 ## 環境とチェック
 
@@ -9,7 +9,9 @@
 - compileSdk / targetSdk 37、minSdk 26。SDK パッケージは `platforms;android-37.0`、AGP の既定の Build-Tools は `36.0.0` です。
 - Gradle キャッシュは `gradle/actions/setup-gradle` に集約し、PR とデフォルトブランチ以外では読み取り専用にします。追加 Secrets は不要です。Gradle の configuration cache は暗号化キーを追加しないため Actions 間で保存しません。
 
-実行コマンド:
+通常 CI では `python3 -B -m unittest discover -s scripts/tests -v` でリリース補助スクリプトの安全性も検証します（外部 API・実際の署名鍵は使いません）。
+
+Android の実行コマンド:
 
 ```sh
 bash gradlew assembleDebug testDebugUnitTest lintDebug --continue --no-daemon --max-workers=2 --console=plain

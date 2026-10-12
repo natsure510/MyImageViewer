@@ -1,0 +1,119 @@
+name: Android Draft Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+
+permissions:
+  contents: read
+
+# Serialize retries for the same tag; existing drafts/releases are never replaced.
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  VERSION_TAG: ${{ github.ref_name }}
+
+jobs:
+  build:
+    name: Validate, test, and build release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      apk_sha256: ${{ steps.prepare.outputs.apk_sha256 }}
+    steps:
+      - name: Set temporary output directory
+        run: echo "RELEASE_DIR=$RUNNER_TEMP/android-release" >> "$GITHUB_ENV"
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate tag and reject existing releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -B -m unittest discover -s scripts/tests -v
+          python3 scripts/android_release.py validate-version
+          python3 scripts/android_release.py ensure-new
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          cmdline-tools-version: '16111833'
+          packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0'
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
+        with:
+          cache-read-only: true
+      - name: Test and lint before building the release APK
+        run: bash gradlew testDebugUnitTest lintRelease --continue --no-daemon --max-workers=2 --console=plain
+      - name: Build unsigned release APK
+        run: bash gradlew assembleRelease --no-daemon --max-workers=2 --console=plain
+      - name: Verify APK version and record build provenance
+        id: prepare
+        run: python3 scripts/android_release.py prepare
+      - name: Transfer unsigned APK to signing job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: MyImageViewer-release-input
+          path: ${{ env.RELEASE_DIR }}/
+          if-no-files-found: error
+          retention-days: 1
+      - name: Save test and lint reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: MyImageViewer-release-reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/test-results/testDebugUnitTest/*.xml
+            app/build/reports/lint-results-release.*
+          if-no-files-found: ignore
+          retention-days: 7
+
+  draft:
+    name: Sign APK and create Draft Release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Set temporary output directory
+        run: echo "RELEASE_DIR=$RUNNER_TEMP/android-release" >> "$GITHUB_ENV"
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          cmdline-tools-version: '16111833'
+          packages: 'build-tools;36.0.0'
+          log-accepted-android-sdk-licenses: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: MyImageViewer-release-input
+          path: ${{ env.RELEASE_DIR }}
+      - name: Sign with existing release key and verify signature
+        env:
+          EXPECTED_APK_SHA256: ${{ needs.build.outputs.apk_sha256 }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: python3 scripts/android_release.py sign
+      - name: Create Draft Release and attach verified APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/android_release.py draft
+      - name: Remove temporary signing material
+        if: ${{ always() }}
+        run: rm -rf -- "$RUNNER_TEMP/android-signing" "$RELEASE_DIR"
