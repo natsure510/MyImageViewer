@@ -42,6 +42,12 @@ import androidx.lifecycle.ViewModelProvider
 import com.example.myimageviewer.ui.theme.MyImageViewerTheme
 
 class MainActivity : ComponentActivity() {
+    override fun onStart() {
+        super.onStart()
+        // Also recover a missed update after process termination or a force-stop/relaunch.
+        ImageWidgetProvider.requestUpdate(this)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
