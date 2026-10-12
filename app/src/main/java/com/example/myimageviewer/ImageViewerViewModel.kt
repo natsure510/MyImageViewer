@@ -37,7 +37,9 @@ internal class ImageViewerViewModel(application: Application) : AndroidViewModel
             initialLoad.join()
             mutableState.value = mutableState.value.copy(busy = true, error = null)
             try {
-                readImage(R.string.save_error) { repository.import(uri) }
+                readImage(R.string.save_error) {
+                    repository.import(uri).also { ImageWidgetProvider.requestUpdate(getApplication()) }
+                }
             } finally {
                 importing = false
             }
